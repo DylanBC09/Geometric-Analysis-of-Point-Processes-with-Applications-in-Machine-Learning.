@@ -1,0 +1,622 @@
+---
+title: "CLEI - Selección de variables"
+output: html_document
+date: "2026-03-10"
+---
+
+# Needed Libraries
+
+```{r}
+library(randomForest)
+library(utils)
+library(randomForest)
+library(forcats)
+library(patchwork)
+library(spatgeom)
+library(RSDA)
+library(pracma)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(pracma)
+library(ggplot2)
+library(plotly)
+library(pracma)
+library(tidyr)
+library(rlang)
+library(scales)
+library(parallel)
+library(gridExtra)
+library(sf)
+library(lwgeom)
+library(ggplot2)
+library(grid)
+library(spatstat.random)
+library(spatstat.geom)
+library(cowplot)
+library(tibble)
+library(sf)
+library(ISLR)
+```
+
+# Created functions
+
+## scale.minmax
+
+Hace una transformación de los datos para que estén en una escala entre $0$ y $1$.
+
+```{r}
+scale.minmax <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+
+# Application
+
+variable <- iris$Sepal.Length
+summary(variable)
+
+variable.minmax <- scale.minmax(variable)
+summary(variable.minmax)
+```
+
+## spatgeom.minmax 
+
+```{r}
+spatgeom.minmax <- function(data, pred.name, pred.vector) {
+  target <- rlang::ensym(pred.name)
+  predictors <- data[, setdiff(names(data), rlang::as_string(target))]
+  predictors.scale <- as.data.frame(lapply(predictors, scale.minmax))
+  target.scale <- scale.minmax(pred.vector)
+  index <- spatgeom(y = target.scale, x = predictors.scale, scale =F)
+  return(list(
+    curve = plot_curve(index, type = "curve"),
+    derivative = plot_curve(index, type = "deriv"),
+    results = index
+  ))
+}
+
+# Application
+
+data <- mtcars[, c("mpg", "disp", "hp", "wt")]
+pred.vector <- data$mpg
+result <- spatgeom.minmax(data, mpg, pred.vector)
+result$curve
+result$derivative
+result$results$results[[1]]$geom_indices # Columnas: alpha y geom_corr
+```
+
+## eslf
+
+```{r}
+eslf<- function(data, pred.name, pred.vector) {
+  target <- rlang::ensym(pred.name)
+  predictors <- data[, setdiff(names(data), rlang::as_string(target))]
+  vars <- names(predictors)
+  index <- spatgeom.minmax(data, !!target, pred.vector)
+  results <- index$results$results
+  geom.indices <- lapply(results, function(x) x$geom_indices)
+  names(geom.indices) <- vars
+  
+  resultados <- list()
+  
+  for (var in vars) {
+    df <- geom.indices[[var]]
+    df1 <- tibble::tibble(
+      alpha  = df$alpha,
+      geom = df$geom_corr
+    )
+
+    p <- ggplot2::ggplot(df1, ggplot2::aes(x = alpha)) +
+      ggplot2::geom_step(ggplot2::aes(y = geom), 
+                         color = "#B2182B", size = 1.2) +
+      ggplot2::labs(
+        x = expression(alpha),
+        y = expression(f),
+        title = paste(var)
+      ) +
+      ggplot2::theme_minimal(base_size = 13) +
+      ggplot2::theme(
+        plot.title = ggplot2::element_text(face = "bold", hjust = 0.5)
+      )
+
+    resultados[[var]] <- list(data = df1, plot = p)
+  }
+
+  return(list(var.results = resultados))
+}
+
+## Application
+
+data <- mtcars[, c("mpg", "disp", "hp", "wt")]
+pred.vector <- data$mpg
+results <- eslf(data, mpg, pred.vector) 
+results$var.results
+```
+
+## rauc.values
+
+```{r}
+rauc.values <- function(datos, res, target){
+  library(ggplot2)
+  library(pracma) # trapz
+
+  datos <- as.data.frame(lapply(datos, scale.minmax))
+  vars <- names(res$var.results)
+  rauc_values <- numeric(length(vars))
+  names(rauc_values) <- vars
+
+  plots <- list()
+
+  make_step <- function(x, y){
+    data.frame(
+      x = rep(x, each = 2)[-1],
+      y = rep(y, each = 2)[-length(y)*2 + 1]
+    )
+  }
+
+  n <- nrow(datos)
+
+  for (var in vars){
+
+    df <- res$var.results[[var]]$data
+    df <- df[order(df$alpha), ]
+    df <- df[!duplicated(df$alpha), ]
+
+    alpha <- c(0, df$alpha)
+    phi   <- c(1, df$geom)
+
+    alpha_max <- max(alpha)
+
+    # Curva empírica (step)
+    step_df <- make_step(alpha, phi)
+    auc_phi <- trapz(step_df$x, step_df$y)
+
+    # CSR teórica en el mismo dominio
+    alpha_grid <- seq(0, alpha_max, length.out = 1000)
+    csr_grid <- exp(-n * pi * alpha_grid^2)
+    auc_csr <- trapz(alpha_grid, csr_grid)
+
+    # RAUC
+    rauc <- auc_csr / auc_phi
+    rauc_values[var] <- rauc
+
+    # Data frame CSR
+    csr_df <- data.frame(alpha = alpha_grid, y = csr_grid, ymin = 0)
+    step_df$ymin <- 0
+
+    # Scatter con puntos grandes, azul interno y borde negro
+    p1 <- ggplot(datos, ggplot2::aes(x = .data[[var]], y = .data[[target]])) +
+      geom_point(shape = 21, size = 4, fill = "blue", color = "black", stroke = 1) +
+      labs(x = var, y = target) +
+      theme_minimal(base_size = 18) +
+      theme(
+        axis.title = element_text(size = 20),
+        axis.text = element_text(size = 16),
+        plot.title = element_text(size = 22, face = "bold")
+      )
+
+    # Curvas con grosor aumentado y fondo azul claro
+    p2 <- ggplot() +
+      geom_ribbon(data = step_df,
+                  aes(x = x, ymin = ymin, ymax = y),
+                  fill = "lightblue", alpha = 0.5) +
+      geom_step(data = step_df,
+                aes(x = x, y = y),
+                color = "darkred", linewidth = 1.5) +
+      geom_ribbon(data = csr_df,
+                  aes(x = alpha, ymin = ymin, ymax = y),
+                  fill = "blue", alpha = 0.2) +
+      geom_line(data = csr_df,
+                aes(x = alpha, y = y),
+                color = "blue", linetype = "dashed", linewidth = 1.5) +
+      labs(
+        x = expression(alpha),
+        y = expression(f(alpha)),
+        title = var
+      ) +
+      ylim(0, 1) +
+      theme_minimal(base_size = 18) +
+      theme(
+        axis.title = element_text(size = 20),
+        axis.text = element_text(size = 16),
+        plot.title = element_text(size = 22, face = "bold")
+      )
+
+    plots[[var]] <- p1 + p2
+  }
+
+  return(list(
+    rauc = sort(rauc_values),
+    plots = plots
+  ))
+}
+
+# Application
+
+results <- rauc.values(data, results, "mpg")
+results$rauc
+results$plots
+```
+
+### Interpretation
+
+```{r}
+set.seed(123)
+n <- 500
+
+# Target
+Y <- runif(n)
+
+# Predictor CSR (independiente)
+X1 <- runif(n)
+
+# Predictor cluster / regularidad
+X2 <- Y + rnorm(n, 0, 0.03)
+X2[X2 < 0] <- 0
+X2[X2 > 1] <- 1
+
+# Data frame
+data <- data.frame(Y = Y, X1 = X1, X2 = X2)
+
+# vector objetivo
+pred.vector <- data$Y
+
+# Calcular empty-space loss
+res <- eslf(data, Y, pred.vector)
+
+# Calcular RAUC
+res2 <- rauc.values(data, res, "Y")
+res2$rauc
+```
+
+# Example 1. Boston Houses Datasets.
+
+## RAUC
+
+```{r}
+library(MASS)
+data(Boston)
+str(Boston)
+colSums(is.na(Boston))
+str(Boston)
+library(MASS)
+data(Boston)
+Boston <- Boston[, !(names(Boston) %in% c("black", "chas", "rad"))]
+train <- sample(x = 1:nrow(Boston), size = round(nrow(Boston) * (2/3)))
+data.train <- Boston[train, ]
+data.test <- Boston[-train, ]
+dim(data.train)
+```
+
+```{r}
+pred.vector <- data.train$medv # Variable a predecir
+res <- eslf(data.train, medv, pred.vector)
+res2 <- rauc.values(data.train, res, "medv")
+res2$rauc
+res2$plots
+```
+
+```{r}
+# Gráfico uno.
+plots <- res2$plots
+pdf("plot1.pdf", width = 10, height = 14)
+wrap_plots(plots[1:10], ncol = 2, nrow = 5)
+dev.off()
+```
+
+```{r}
+# Gráfico dos
+rauc <- res2$rauc
+df <- data.frame(variable = names(rauc), rauc = rauc)
+df$variable <- fct_reorder(df$variable, df$rauc, .desc = TRUE)
+# Si hay más de 2 variables se pone horizontal
+horizontal <- length(rauc) > 2
+p <- ggplot(df, aes(x = variable, y = rauc)) +
+  geom_bar(stat = "identity",
+           fill = "blue",
+           color = "black",
+           width = 0.7) +
+  labs(
+    x = "Variables",
+    y = "RAUC"
+  ) +
+  theme_minimal(base_size = 18) +
+  theme(
+    axis.text.x = element_text(
+      angle = ifelse(horizontal, 0, 90),
+      vjust = 0.5,
+      hjust = 1,
+      size = 16
+    ),
+    axis.text.y = element_text(size = 16),
+    axis.title = element_text(size = 20, face = "bold"),
+    plot.title = element_text(size = 22, face = "bold")
+  )
+
+if(horizontal){
+  p <- p + coord_flip()
+}
+
+ggsave("plot2.pdf", plot = p, width = 10, height = 8)
+```
+
+## Regression Model
+
+```{r}
+scale_minmax <- function(x, min_val, max_val) {
+  (x - min_val) / (max_val - min_val)
+}
+
+# Combinaciones de 3 variables
+
+set.seed(123)
+
+mins <- sapply(data.train, min)
+maxs <- sapply(data.train, max)
+data.train <- as.data.frame(mapply(scale_minmax,
+                                  data.train,
+                                  mins,
+                                  maxs,
+                                  SIMPLIFY = FALSE))
+data.test <- as.data.frame(mapply(scale_minmax,
+                                 data.test,
+                                 mins,
+                                 maxs,
+                                 SIMPLIFY = FALSE))
+vars_all <- c("crim", "lstat", "zn", "tax", "dis",
+              "indus", "nox", "rm", "ptratio", "age")
+# Generar combinaciones de 3
+combs <- combn(vars_all, 3, simplify = FALSE)
+results <- data.frame(
+  Variables = character(),
+  RMSE = numeric(),
+  stringsAsFactors = FALSE
+)
+# Cross-validation
+k_folds <- 5
+folds <- sample(rep(1:k_folds, length.out = nrow(data.train)))
+for (vars in combs) {
+  fold_rmse <- c()
+  for (f in 1:k_folds) {
+    train <- data.train[folds != f, ]
+    val   <- data.train[folds == f, ]
+    rf <- randomForest(
+      medv ~ .,
+      data = train[, c("medv", vars)],
+      ntree = 300
+    )
+    pred <- predict(rf, val[, vars, drop = FALSE])
+    rmse <- sqrt(mean((val$medv - pred)^2))
+    fold_rmse <- c(fold_rmse, rmse)
+  }
+  results <- rbind(results, data.frame(
+    Variables = paste(vars, collapse = " + "),
+    RMSE = mean(fold_rmse)
+  ))
+}
+
+# Ordenar de menor a mayor RMSE
+results <- results[order(results$RMSE), ]
+results
+```
+
+```{r}
+# Combinaciones de 5 variables
+
+library(randomForest)
+
+set.seed(123)
+
+scale_minmax <- function(x, min_val, max_val) {
+  (x - min_val) / (max_val - min_val)
+}
+
+mins <- sapply(data.train, min)
+maxs <- sapply(data.train, max)
+
+data.train <- as.data.frame(mapply(scale_minmax,
+                                  data.train,
+                                  mins,
+                                  maxs,
+                                  SIMPLIFY = FALSE))
+
+data.test <- as.data.frame(mapply(scale_minmax,
+                                 data.test,
+                                 mins,
+                                 maxs,
+                                 SIMPLIFY = FALSE))
+
+vars_all <- c("crim", "lstat", "zn", "tax", "dis",
+              "indus", "nox", "rm", "ptratio", "age")
+
+# Generar combinaciones de 5
+combs <- combn(vars_all, 5, simplify = FALSE)
+
+results <- data.frame(
+  Variables = character(),
+  RMSE = numeric(),
+  stringsAsFactors = FALSE
+)
+
+k_folds <- 5
+folds <- sample(rep(1:k_folds, length.out = nrow(data.train)))
+
+for (vars in combs) {
+  
+  fold_rmse <- c()
+  
+  for (f in 1:k_folds) {
+    
+    train <- data.train[folds != f, ]
+    val   <- data.train[folds == f, ]
+    
+    rf <- randomForest(
+      medv ~ .,
+      data = train[, c("medv", vars)],
+      ntree = 300
+    )
+    
+    pred <- predict(rf, val[, vars, drop = FALSE])
+    
+    rmse <- sqrt(mean((val$medv - pred)^2))
+    
+    fold_rmse <- c(fold_rmse, rmse)
+  }
+  
+  results <- rbind(results, data.frame(
+    Variables = paste(vars, collapse = " + "),
+    RMSE = mean(fold_rmse)
+  ))
+}
+
+# Ordenar de menor a mayor RMSE
+results <- results[order(results$RMSE), ]
+
+results
+```
+
+# Ejemplo 2. Simulations.
+
+## RAUC
+
+```{r}
+set.seed(123)
+n <- 600
+Y <- runif(n, -2, 2)
+# 1. Ishigami 
+X1 <- sin(Y) + 0.5*sin(2*Y) + rnorm(n, 0, 0.05)
+# 2. Donut 
+X2 <- Y^2 + rnorm(n, 0, 0.15)
+# 3. Sinusoidal
+X3 <- Y + 0.8*sin(3*Y) + rnorm(n, 0, 0.1)
+# 4. Lineal 
+X4 <- Y + rnorm(n, 0, 0.08)
+# Independiente y homogéneo
+X5 <- runif(n, min(Y), max(Y))
+cluster_id <- cut(Y, breaks = 3, labels = FALSE)
+X6 <- numeric(n)
+for (k in 1:3) {
+  idx <- which(cluster_id == k)
+  if (k == 1) {
+    X6[idx] <- rnorm(length(idx), mean = -1.5, sd = 0.2)
+  } else if (k == 2) {
+    X6[idx] <- rnorm(length(idx), mean = 0, sd = 0.2)
+  } else {
+    X6[idx] <- rnorm(length(idx), mean = 1.5, sd = 0.2)
+  }
+}
+data_df <- data.frame(
+  Y = Y,
+  X1 = X1,
+  X2 = X2,
+  X3 = X3,
+  X4 = X4,
+  X5 = X5,
+  X6 = X6
+)
+```
+
+```{r}
+pred <- data_df$Y
+res <- eslf(data_df, Y , pred)
+time.res
+res2 <- rauc.values(data_df, res, "Y")
+res2$rauc
+```
+
+```{r}
+plots_list <- res2$plots
+pdf("plot3.pdf", width = 16, height = 18)
+wrap_plots(plots_list, ncol = 2, nrow = 4)
+dev.off()
+```
+
+```{r}
+rauc <- res2$rauc
+df <- data.frame(variable = names(rauc),
+                 rauc = rauc)
+df$variable <- fct_reorder(df$variable, df$rauc, .desc = TRUE)
+p <- ggplot(df, aes(x = variable, y = rauc)) +
+  geom_bar(stat = "identity",
+           fill = "blue",
+           color = "black",
+           width = 0.7) +
+  labs(
+    x = "Variables",
+    y = "RAUC"
+  ) +
+  theme_minimal(base_size = 18) +
+  theme(
+    axis.text.x = element_text(size = 16),
+    axis.text.y = element_text(size = 16),
+    axis.title = element_text(size = 20, face = "bold"),
+    plot.title = element_text(size = 22, face = "bold")
+  ) +
+  coord_flip()
+ggsave("plot4.pdf", plot = p, width = 10, height = 8)
+```
+
+## Regression
+
+```{r}
+library(randomForest)
+library(utils)
+
+set.seed(123)
+
+X <- data_df[, -1]
+Y <- data_df$Y
+
+p <- ncol(X)
+
+results <- list()
+
+for (k in 1:p) {
+  
+  combs <- combn(names(X), k, simplify = FALSE)
+  
+  best_rmse <- Inf
+  best_vars <- NULL
+  
+  for (vars in combs) {
+    
+    folds <- sample(1:5, nrow(data_df), replace = TRUE)
+    
+    fold_rmse <- c()
+    
+    for (f in 1:5) {
+      
+      train <- data_df[folds != f, ]
+      test  <- data_df[folds == f, ]
+      
+      rf <- randomForest(
+        Y ~ .,
+        data = train[, c("Y", vars)],
+        ntree = 300
+      )
+      
+      pred <- predict(rf, test[, vars, drop = FALSE])
+      
+      fold_rmse <- c(fold_rmse,
+                     sqrt(mean((test$Y - pred)^2)))
+    }
+    
+    avg_rmse <- mean(fold_rmse)
+    
+    if (avg_rmse < best_rmse) {
+      best_rmse <- avg_rmse
+      best_vars <- vars
+    }
+  }
+  
+  results[[k]] <- list(
+    size = k,
+    vars = best_vars,
+    rmse = best_rmse
+  )
+}
+
+results
+```
