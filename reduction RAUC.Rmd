@@ -1,0 +1,1050 @@
+
+
+# Needed Libraries
+
+```{r}
+library(randomForest)
+library(utils)
+library(randomForest)
+library(forcats)
+library(patchwork)
+library(spatgeom)
+library(RSDA)
+library(pracma)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(pracma)
+library(ggplot2)
+library(plotly)
+library(pracma)
+library(tidyr)
+library(rlang)
+library(scales)
+library(parallel)
+library(gridExtra)
+library(sf)
+library(lwgeom)
+library(ggplot2)
+library(grid)
+library(spatstat.random)
+library(spatstat.geom)
+library(cowplot)
+library(tibble)
+library(sf)
+library(ISLR)
+```
+
+
+<!-- # Ejemplo 2. College -->
+
+<!-- Dataset: *College*. -->
+<!-- Target: *Apps* (Número de solicitudes). -->
+
+<!-- ```{r} -->
+<!-- datos <- College -->
+<!-- datos <- datos[, !(names(datos) %in% c("Accept", "Enroll","Private"))] -->
+<!-- datos <- datos[datos$Apps != max(datos$Apps), ] -->
+<!-- datos <- as.data.frame(scale(datos)) -->
+<!-- train <- sample(x = 1:nrow(datos), size = round(nrow(datos) * (2/3))) -->
+<!-- datos.train <- datos[train, ] -->
+<!-- datos.test <- datos[-train, ] -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- pred <- datos.train$Apps # Variable a predecir -->
+<!-- time.res <- system.time({ -->
+<!--   res <- empty.space.loss.function.c(datos.train, Apps, pred) -->
+<!--   }) -->
+<!-- time.res -->
+<!-- res2 <- rauc.values(datos.train, res, "Apps") -->
+<!-- res2$rauc -->
+<!-- res2$plots -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- plots_list <- res2$plots -->
+<!-- pdf("aps.pdf", width = 12, height = 18) -->
+<!-- wrap_plots(plots_list, ncol = 2, nrow = 7) -->
+<!-- dev.off() -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- library(ggplot2) -->
+
+<!-- rauc <- res2$rauc -->
+
+<!-- # Ordenar de menor a mayor -->
+<!-- library(forcats) -->
+
+<!-- df <- data.frame( -->
+<!--   variable = names(rauc), -->
+<!--   rauc = rauc -->
+<!-- ) -->
+
+<!-- df$variable <- fct_reorder(df$variable, df$rauc, .desc = TRUE) -->
+
+<!-- horizontal <- length(rauc) > 8 -->
+
+<!-- p <- ggplot(df, aes(x = variable, y = rauc)) + -->
+<!--   geom_bar(stat = "identity", -->
+<!--            fill = "lightblue", -->
+<!--            color = "black", -->
+<!--            width = 0.7) + -->
+<!--   labs( -->
+<!--     x = "Variables", -->
+<!--     y = "RAUC" -->
+<!--   ) + -->
+<!--   theme_minimal() + -->
+<!--   theme( -->
+<!--     axis.text.x = element_text( -->
+<!--       angle = ifelse(horizontal, 0, 90), -->
+<!--       vjust = 0.5, -->
+<!--       hjust = 1, -->
+<!--       size = 14 -->
+<!--     ), -->
+<!--     axis.text.y = element_text(size = 14), -->
+<!--     axis.title = element_text(size = 16) -->
+<!--   ) -->
+
+<!-- if(horizontal){ -->
+<!--   p <- p + coord_flip() -->
+<!-- } -->
+
+<!-- p -->
+
+<!-- ggsave("ble.pdf", plot = p, width = 8, height = 6) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- library(randomForest) -->
+<!-- library(utils) -->
+
+<!-- set.seed(123) -->
+
+<!-- X <- datos[, -1] -->
+<!-- Y <- datos$Apps -->
+
+<!-- p <- ncol(X) -->
+
+<!-- results <- list() -->
+
+<!-- for (k in 1:p) { -->
+
+<!--   combs <- combn(names(X), k, simplify = FALSE) -->
+
+<!--   best_rmse <- Inf -->
+<!--   best_vars <- NULL -->
+
+<!--   for (vars in combs) { -->
+
+<!--     folds <- sample(1:5, nrow(datos), replace = TRUE) -->
+
+<!--     fold_rmse <- c() -->
+
+<!--     for (f in 1:5) { -->
+
+<!--       train <- datos[folds != f, ] -->
+<!--       test  <- datos[folds == f, ] -->
+
+<!--       rf <- randomForest( -->
+<!--         Apps ~ ., -->
+<!--         data = train[, c("Apps", vars)], -->
+<!--         ntree = 300 -->
+<!--       ) -->
+
+<!--       pred <- predict(rf, test[, vars, drop = FALSE]) -->
+
+<!--       fold_rmse <- c(fold_rmse, -->
+<!--                      sqrt(mean((test$Apps - pred)^2))) -->
+<!--     } -->
+
+<!--     avg_rmse <- mean(fold_rmse) -->
+
+<!--     if (avg_rmse < best_rmse) { -->
+<!--       best_rmse <- avg_rmse -->
+<!--       best_vars <- vars -->
+<!--     } -->
+<!--   } -->
+
+<!--   results[[k]] <- list( -->
+<!--     size = k, -->
+<!--     vars = best_vars, -->
+<!--     rmse = best_rmse -->
+<!--   ) -->
+<!-- } -->
+
+<!-- results -->
+<!-- ``` -->
+
+
+
+
+
+
+
+
+<!-- # Ejemplo 3 House -->
+
+<!-- ```{r} -->
+<!-- datos <- read.csv("house.csv") -->
+<!-- datos <- datos[, sapply(datos, is.numeric)] -->
+<!-- vars <- c("price","crime_rate", -->
+<!--           "resid_area", -->
+<!--           "air_qual", -->
+<!--           "room_num", -->
+<!--           "age", -->
+<!--           "dist1", -->
+<!--           "teachers", -->
+<!--           "poor_prop") -->
+<!-- datos <- datos[, vars] -->
+<!-- datos <- as.data.frame(scale(datos)) -->
+<!-- train <- sample(x = 1:nrow(datos), size = round(nrow(datos) * (2/3))) -->
+<!-- datos.train <- datos[train, ] -->
+<!-- datos.test <- datos[-train, ] -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- pred <- datos.train$price  -->
+<!-- time.res <- system.time({ -->
+<!--   res <- empty.space.loss.function.c(datos.train, price, pred) -->
+<!--   }) -->
+<!-- time.res -->
+<!-- res2 <- rauc.values(datos.train, res, "price") -->
+<!-- res2$rauc -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- # Gráfico dispersión-rauc -->
+<!-- plots_list <- res2$plots -->
+<!-- pdf("gra1.pdf", width = 16, height = 18) -->
+<!-- wrap_plots(plots_list, ncol = 2, nrow = 4) -->
+<!-- dev.off() -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- library(ggplot2) -->
+<!-- library(forcats) -->
+
+<!-- rauc <- res2$rauc -->
+
+<!-- df <- data.frame( -->
+<!--   variable = names(rauc), -->
+<!--   rauc = rauc -->
+<!-- ) -->
+
+<!-- df$variable <- fct_reorder(df$variable, df$rauc, .desc = TRUE) -->
+
+<!-- p <- ggplot(df, aes(x = variable, y = rauc)) + -->
+<!--   geom_col(fill = "lightblue", -->
+<!--            color = "black", -->
+<!--            width = 0.7) + -->
+<!--   labs( -->
+<!--     x = "Variables", -->
+<!--     y = "RAUC" -->
+<!--   ) + -->
+<!--   theme_minimal() + -->
+<!--   theme( -->
+<!--     axis.text.x = element_text(size = 12), -->
+<!--     axis.text.y = element_text(size = 12), -->
+<!--     axis.title = element_text(size = 14) -->
+<!--   ) + -->
+<!--   coord_flip() -->
+
+<!-- p -->
+
+<!-- ggsave("finald.pdf", plot = p, width = 8, height = 5) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- ```  -->
+
+# Ejemplo 4.
+
+```{r}
+minmax <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+rauc.valuesk <- function(datos, res, target){
+  scale_minmax <- function(x){
+    (x - min(x)) / (max(x) - min(x))
+  }
+  datos <- as.data.frame(lapply(datos, scale_minmax))
+  df <- res$results[[1]]$geom_indices
+  df <- df[order(df$alpha), ]
+  df <- df[!duplicated(df$alpha), ]
+  vars <- "embedding"
+  rauc_values <- numeric(1)
+  names(rauc_values) <- vars
+  plots <- list()
+  make_step <- function(x, y){
+    data.frame(
+      x = rep(x, each = 2)[-1],
+      y = rep(y, each = 2)[-length(y)*2 + 1]
+    )
+  }
+  n <- nrow(datos)
+  alpha <- c(0, df$alpha)
+  phi   <- c(1, df$geom_corr)
+  step_df <- make_step(alpha, phi)
+  auc_phi <- trapz(step_df$x, step_df$y)
+  csr <- exp(-n * pi * alpha^2)
+  csr[1] <- 1
+  alpha_max <- max(alpha)
+  auc_csr <- (1 / (2 * sqrt(n))) * erf(sqrt(n * pi) * alpha_max)
+  rauc <- auc_csr / auc_phi
+  rauc_values[1] <- rauc
+  csr_df <- data.frame(alpha = alpha, y = csr, ymin = 0)
+  step_df$ymin <- 0
+  p1 <- ggplot(datos, aes_string(x = names(datos)[1], y = target)) +
+    geom_point(alpha = 0.6, color = "black") +
+    labs(x = "PC1 / X", y = target) +
+    theme_minimal()
+  p2 <- ggplot() +
+    geom_ribbon(data = step_df,
+                aes(x = x, ymin = ymin, ymax = y),
+                fill = "lightblue", alpha = 0.5) +
+    geom_step(data = step_df,
+              aes(x = x, y = y),
+              color = "darkred", linewidth = 1) +
+    geom_ribbon(data = csr_df,
+                aes(x = alpha, ymin = ymin, ymax = y),
+                fill = "blue", alpha = 0.2) +
+    geom_line(data = csr_df,
+              aes(x = alpha, y = y),
+              color = "blue", linetype = "dashed", linewidth = 1) +
+    labs(
+      x = expression(alpha),
+      y = expression(L(alpha)),
+      title = "Geometric Embedding RAUC"
+    ) +
+    ylim(0, 1) +
+    theme_minimal()
+
+  plots[[1]] <- p1 + p2
+
+  return(list(
+    rauc = rauc_values,
+    plots = plots
+  ))
+}
+compute_alpha_shape.pca <- function(coords, alpha_value){
+
+  library(sf)
+  library(lwgeom)
+
+  # 1. Convertir a sf
+  pts <- st_as_sf(coords, coords = c("PC1", "PC2"))
+
+  # 2. Triangulación de Delaunay
+  tri <- st_triangulate(st_union(pts))
+
+  # 🔥 FIX IMPORTANTE
+  tri <- st_collection_extract(tri, "POLYGON")
+  tri <- st_as_sf(tri)
+
+  # 3. Líneas y segmentos
+  lines <- st_cast(tri, "LINESTRING")
+  lines_split <- st_split(lines, pts)
+
+  # 4. max_length
+  max_length <- sapply(lines_split, function(x){
+    max(st_length(st_cast(st_sfc(x))))
+  })
+
+  # 5. Data frame de triángulos
+  triangles <- st_sf(
+    geometry = tri$geometry,
+    max_length = as.numeric(max_length),
+    alpha = as.numeric(max_length) / 2
+  )
+
+  # 6. Filtrado α-shape
+  alpha_tri <- triangles[triangles$max_length <= 2 * alpha_value, ]
+
+  # 7. Unión (solo para contorno)
+  shape_union <- st_union(alpha_tri)
+
+  return(list(
+    shape = shape_union,
+    triangles = triangles,
+    alpha_tri = alpha_tri
+  ))
+}
+plot_alpha_shape.pca <- function(coords, alpha_value){
+
+  res <- compute_alpha_shape.pca(coords, alpha_value)
+
+  ggplot() +
+
+    # 🔷 Triangulación completa (gris)
+    geom_sf(data = res$triangles,
+            fill = NA,
+            color = "gray80",
+            linewidth = 0.3) +
+
+    # 🔵 Triángulos del α-shape
+    geom_sf(data = res$alpha_tri,
+            fill = "lightblue",
+            color = "blue",
+            alpha = 0.5) +
+
+    # 🔴 Contorno final
+    geom_sf(data = res$shape,
+            fill = NA,
+            color = "darkblue",
+            linewidth = 1.2) +
+
+    # ⚫ Puntos
+    geom_point(data = coords,
+               aes(x = PC1, y = PC2),
+               size = 1) +
+
+labs(
+  title = bquote(alpha == .(round(alpha_value, 3))),
+  x = "PCA1",
+  y = "PCA2"
+)
+
+    theme_minimal()
+}
+plot_multiple_alpha.pca <- function(coords, alpha_values){
+
+  plots <- lapply(alpha_values, function(a){
+    plot_alpha_shape(coords, a)
+  })
+
+  return(plots)
+}
+plot_alpha_shape.iris <- function(coords, alpha_value){
+
+  shape <- compute_alpha_shape(coords, alpha_value)
+
+  ggplot() +
+    geom_sf(data = shape, fill = "lightblue", alpha = 0.3) +
+    geom_point(data = coords,
+               aes(x = PC1, y = PC2, color = Species),
+               size = 1.8) +
+    labs(
+      title = paste("Alpha-shape (alpha =", round(alpha_value, 3), ")"),
+      x = "UMAP1",
+      y = "UMAP2"
+    ) +
+    theme_minimal()
+}
+compute_alpha_shape.umap <- function(coords, alpha_value){
+
+  # 1. Convertir a objeto sf
+  pts <- st_as_sf(coords, coords = c("UMAP1", "UMAP2"))
+
+  # 2. Triangulación de Delaunay
+  tri <- st_triangulate(st_union(pts))
+  tri <- st_collection_extract(st_sfc(tri), "POLYGON")
+
+  # 3. Convertir a líneas y dividir en segmentos
+  lines <- st_cast(tri, "LINESTRING")
+  lines_split <- st_split(lines, pts)
+
+  # 4. Calcular longitud máxima por triángulo
+  max_length <- sapply(lines_split, function(x){
+    max(st_length(st_cast(st_sfc(x))))
+  })
+
+  # 5. Crear estructura tipo spatgeom
+  triangles <- st_sf(
+    geometry = tri,
+    max_length = as.numeric(max_length),
+    alpha = as.numeric(max_length) / 2
+  )
+
+  # 6. Filtrar triángulos (α-shape)
+  alpha_tri <- triangles[triangles$max_length <= 2 * alpha_value, ]
+
+  # 7. Unión geométrica
+  shape_union <- st_union(alpha_tri)
+
+  return(shape_union)
+}
+plot_alpha_shape.umap <- function(coords, alpha_value){
+  shape <- compute_alpha_shape.umap(coords, alpha_value)
+  ggplot() +
+    geom_sf(data = shape, fill = "lightblue", alpha = 0.4) +
+    geom_point(data = coords, aes(x = UMAP1, y = UMAP2), size = 1) +
+    labs(x = "UMAP1",
+      y = "UMAP2"
+    ) +
+    theme_minimal()}
+rauc.valuesk2 <- function(datos, res, target){
+
+  # 🔥 NO reescalar aquí (ya viene escalado)
+  datos_num <- datos[, sapply(datos, is.numeric)]
+
+  library(pracma)
+  library(ggplot2)
+  library(patchwork)
+
+  df <- res$results[[1]]$geom_indices
+  df <- df[order(df$alpha), ]
+  df <- df[!duplicated(df$alpha), ]
+
+  vars <- "embedding"
+  rauc_values <- numeric(1)
+  names(rauc_values) <- vars
+  plots <- list()
+
+  make_step <- function(x, y){
+    data.frame(
+      x = rep(x, each = 2)[-1],
+      y = rep(y, each = 2)[-length(y)*2 + 1]
+    )
+  }
+
+  n <- nrow(datos_num)
+  alpha <- c(0, df$alpha)
+  phi   <- c(1, df$geom_corr)
+  step_df <- make_step(alpha, phi)
+  auc_phi <- trapz(step_df$x, step_df$y)
+
+  # CSR
+  csr <- exp(-n * pi * alpha^2)
+  csr[1] <- 1
+  alpha_max <- max(alpha)
+  auc_csr <- (1 / (2 * sqrt(n))) * erf(sqrt(n * pi) * alpha_max)
+
+  # RAUC
+  rauc <- auc_csr / auc_phi
+  rauc_values[1] <- rauc
+
+  csr_df <- data.frame(alpha = alpha, y = csr, ymin = 0)
+  step_df$ymin <- 0
+
+  # 🔥 Scatter con contorno negro y relleno azul
+  p1 <- ggplot(datos, aes(x = PC1, y = PC2)) +
+    geom_point(shape = 21, fill = "blue", color = "black", size = 3, stroke = 0.7, alpha = 0.8) +
+    labs(x = "PC1", y = "PC2") +
+    theme_minimal(base_size = 14)
+
+  # Curva RAUC con f(alpha)
+  p2 <- ggplot() +
+    geom_ribbon(data = step_df,
+                aes(x = x, ymin = ymin, ymax = y),
+                fill = "lightblue", alpha = 0.5) +
+    geom_step(data = step_df,
+              aes(x = x, y = y),
+              color = "darkred", linewidth = 1) +
+    geom_ribbon(data = csr_df,
+                aes(x = alpha, ymin = ymin, ymax = y),
+                fill = "blue", alpha = 0.2) +
+    geom_line(data = csr_df,
+              aes(x = alpha, y = y),
+              color = "blue", linetype = "dashed", linewidth = 1) +
+    labs(
+      x = expression(alpha),
+      y = expression(f(alpha))
+    ) +
+    ylim(0, 1) +
+    theme_minimal(base_size = 14)
+
+  plots[[1]] <- p1 + p2
+
+  return(list(
+    rauc = rauc_values,
+    plots = plots
+  ))
+}
+```
+
+##pca dataset penguins
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+data <- penguins
+penguins_num <- penguins[, sapply(penguins, is.numeric)]
+str(penguins_num)
+head(penguins_num)
+colSums(is.na(penguins_num))
+penguins_num <- na.omit(penguins_num)
+res.pca <- PCA(penguins_num, scale.unit = TRUE, graph = FALSE)
+fviz_pca_ind(res.pca,
+             geom = "point",
+             label = "none")
+coord <- as.data.frame(res.pca$ind$coord[, 1:2])
+colnames(coord) <- c("PC1", "PC2")
+coord <- as.data.frame(lapply(coord, minmax))
+pred <- coords$PC2# Variable a predecir
+res <- spatgeom(y = pred, x = coord$PC1, scale =F)
+res2 <-rauc.valuesk(coord, res, pred)
+res2$plots
+plot_alpha_shape.pca(coords, alpha_value = 1)
+```
+
+##umap dataset penguins
+
+```{r}
+library(umap)
+library(ggplot2)
+data <- penguins
+penguins_num <- penguins[, sapply(penguins, is.numeric)]
+penguins_num <- na.omit(penguins_num)
+umap_res <- umap(penguins_num)
+coord <- as.data.frame(umap_res$layout)
+colnames(coord) <- c("UMAP1", "UMAP2")
+minmax <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+coord <- as.data.frame(lapply(coord, minmax))
+
+ggplot(coord, aes(x = UMAP1, y = UMAP2)) +
+  geom_point() +
+  theme_minimal()
+
+pred <- coord$UMAP2   
+res <- spatgeom(y = pred, x = coord$UMAP1, scale = FALSE)
+
+res2 <- rauc.valuesk(coord, res, pred)
+
+res2$plots
+
+plot_alpha_shape.umap(coord, alpha_value = 0.2)
+```
+
+
+##pca dataset iris
+
+```{r}
+## =========================
+## PCA DATASET IRIS
+## =========================
+library(FactoMineR)
+library(factoextra)
+library(ggplot2)
+
+data(iris)
+
+# Solo variables numéricas
+iris_num <- iris[, sapply(iris, is.numeric)]
+
+# PCA
+res.pca <- PCA(iris_num, scale.unit = TRUE, graph = FALSE)
+
+# Coordenadas
+coord <- as.data.frame(res.pca$ind$coord[, 1:2])
+colnames(coord) <- c("PC1", "PC2")
+
+# Agregar especie
+coord$Species <- iris$Species
+
+# Min-Max (solo a las columnas numéricas)
+minmax <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+
+coord[, c("PC1","PC2")] <- lapply(coord[, c("PC1","PC2")], minmax)
+
+# =========================
+# VISUALIZACIÓN COLOREADA
+# =========================
+ggplot(coord, aes(x = PC1, y = PC2, color = Species)) +
+  geom_point(size = 2) +
+  theme_minimal() +
+  labs(title = "PCA - Iris (coloreado por especie)")
+
+# =========================
+# PIPELINE GEOMÉTRICO
+# =========================
+pred <- coord$PC2
+
+res <- spatgeom(y = pred, x = coord$PC1, scale = FALSE)
+
+res1 <- rauc.valuesk2(coord, res, pred)
+
+res1$plots
+
+# α-shape (sin color interno, pero puntos sí)
+plot_alpha_shape.iris(coord, alpha_value = 0)
+gra1 <- plot_alpha_shape.iris(coord, alpha_value = 0.1)
+plot_alpha_shape.iris(coord, alpha_value = 0.2)
+plot_alpha_shape.iris(coord, alpha_value = 0.3)
+plot_alpha_shape.iris(coord, max(res$results[[1]]$geom_indices$alpha))
+
+```
+
+##umap dataset iris
+
+```{r}
+## =========================
+## UMAP DATASET IRIS
+## =========================
+library(umap)
+library(ggplot2)
+
+data(iris)
+
+# =========================
+# SOLO NUMÉRICAS
+# =========================
+iris_num <- iris[, sapply(iris, is.numeric)]
+
+# =========================
+# UMAP
+# =========================
+umap_res <- umap(iris_num)
+
+coord <- as.data.frame(umap_res$layout)
+colnames(coord) <- c("PC1", "PC2")   # 🔥 CLAVE: usar mismos nombres que PCA
+
+# Agregar especie
+coord$Species <- iris$Species
+
+# =========================
+# MIN-MAX
+# =========================
+minmax <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+
+coord[, c("PC1","PC2")] <- lapply(coord[, c("PC1","PC2")], minmax)
+
+# =========================
+# VISUALIZACIÓN COLOREADA
+# =========================
+ggplot(coord, aes(x = PC1, y = PC2, color = Species)) +
+  geom_point(size = 2) +
+  theme_minimal() +
+  labs(title = "UMAP - Iris (coloreado por especie)")
+
+# =========================
+# PIPELINE GEOMÉTRICO
+# =========================
+pred <- coord$PC2
+
+res <- spatgeom(y = pred, x = coord$PC1, scale = FALSE)
+
+res2 <- rauc.valuesk2(coord, res, pred)
+
+res2$plots
+
+# =========================
+# α-shape (COLOREADO)
+# =========================
+gra2 <- plot_alpha_shape.iris(coord, alpha_value = 0.45)
+```
+
+```{r}
+gra3 <-res1$plots[[1]]
+gra4 <-res2$plots[[1]]
+gra1
+gra2
+gra3
+gra4
+
+p <- (gra3 | gra4) /
+     (gra1 | gra2)
+
+pdf("spg.pdf", width = 12, height = 10)
+print(p)
+dev.off()
+```
+
+
+# Experimento 5
+
+```{r}
+library(umap)
+library(ggplot2)
+minmax <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+
+data(iris)
+iris_num <- iris[, sapply(iris, is.numeric)]
+
+
+# 1. Pocos vecinos → estructura muy local
+config1 <- umap.defaults
+config1$metric <- "euclidean"
+config1$n_neighbors <- 5
+model1 <- umap(iris_num, config = config1)
+
+# 2. Valor intermedio (default típico ~15)
+config2 <- umap.defaults
+config2$metric <- "euclidean"
+config2$n_neighbors <- 15
+model2 <- umap(iris_num, config = config2)
+
+# 3. Muchos vecinos → estructura más global
+config3 <- umap.defaults
+config3$metric <- "euclidean"
+config3$n_neighbors <- 50
+model3 <- umap(iris_num, config = config3)
+
+
+# 4. Pocos vecinos → estructura muy local
+config4 <- umap.defaults
+config4$metric <- "manhattan"
+config4$n_neighbors <- 5
+model4 <- umap(iris_num, config = config4)
+
+# 5. Valor intermedio (default típico ~15)
+config5 <- umap.defaults
+config5$metric <- "manhattan"
+config5$n_neighbors <- 15
+model5 <- umap(iris_num, config = config5)
+
+# 6. Muchos vecinos → estructura más global
+config6 <- umap.defaults
+config6$metric <- "manhattan"
+config6$n_neighbors <- 50
+model6 <- umap(iris_num, config = config6)
+
+# 7. Pocos vecinos → estructura muy local
+config7 <- umap.defaults
+config7$metric <- "cosine"
+config7$n_neighbors <- 5
+model7 <- umap(iris_num, config = config7)
+
+# 8. Valor intermedio (default típico ~15)
+config8 <- umap.defaults
+config8$metric <- "cosine"
+config8$n_neighbors <- 15
+model8 <- umap(iris_num, config = config8)
+
+# 9. Muchos vecinos → estructura más global
+config9 <- umap.defaults
+config9$metric <- "cosine"
+config9$n_neighbors <- 50
+model9 <- umap(iris_num, config = config9)
+
+coord1 <- as.data.frame(model1$layout)
+colnames(coord1) <- c("PC1", "PC2")  
+coord1$Species <- iris$Species
+coord1[, c("PC1","PC2")] <- lapply(coord1[, c("PC1","PC2")], minmax)
+
+coord2 <- as.data.frame(model2$layout)
+colnames(coord2) <- c("PC1", "PC2")  
+coord2$Species <- iris$Species
+coord2[, c("PC1","PC2")] <- lapply(coord2[, c("PC1","PC2")], minmax)
+
+coord3 <- as.data.frame(model3$layout)
+colnames(coord3) <- c("PC1", "PC2")  
+coord3$Species <- iris$Species
+coord3[, c("PC1","PC2")] <- lapply(coord3[, c("PC1","PC2")], minmax)
+
+coord4 <- as.data.frame(model4$layout)
+colnames(coord4) <- c("PC1", "PC2")  
+coord4$Species <- iris$Species
+coord4[, c("PC1","PC2")] <- lapply(coord4[, c("PC1","PC2")], minmax)
+
+coord5 <- as.data.frame(model5$layout)
+colnames(coord5) <- c("PC1", "PC2")  
+coord5$Species <- iris$Species
+coord5[, c("PC1","PC2")] <- lapply(coord5[, c("PC1","PC2")], minmax)
+
+coord6 <- as.data.frame(model6$layout)
+colnames(coord6) <- c("PC1", "PC2")  
+coord6$Species <- iris$Species
+coord6[, c("PC1","PC2")] <- lapply(coord6[, c("PC1","PC2")], minmax)
+
+coord7 <- as.data.frame(model7$layout)
+colnames(coord7) <- c("PC1", "PC2")  
+coord7$Species <- iris$Species
+coord7[, c("PC1","PC2")] <- lapply(coord7[, c("PC1","PC2")], minmax)
+
+coord8 <- as.data.frame(model8$layout)
+colnames(coord8) <- c("PC1", "PC2")  
+coord8$Species <- iris$Species
+coord8[, c("PC1","PC2")] <- lapply(coord8[, c("PC1","PC2")], minmax)
+
+coord9 <- as.data.frame(model9$layout)
+colnames(coord9) <- c("PC1", "PC2")  
+coord9$Species <- iris$Species
+coord9[, c("PC1","PC2")] <- lapply(coord9[, c("PC1","PC2")], minmax)
+
+coord1 <- select(coord1, -Species)
+
+pred1 <- coord1$PC2
+res1 <- spatgeom(y = pred1, x = coord1$PC1, scale = FALSE)
+res11 <- rauc.valuesk2(coord1, res1, pred1)
+
+
+pred2 <- coord2$PC2
+res2 <- spatgeom(y = pred2, x = coord2$PC1, scale = FALSE)
+res22 <- rauc.valuesk2(coord2, res2, pred2)
+
+pred3 <- coord3$PC2
+res3 <- spatgeom(y = pred3, x = coord3$PC1, scale = FALSE)
+res33 <- rauc.valuesk2(coord3, res3, pred3)
+
+
+pred4 <- coord4$PC2
+res4 <- spatgeom(y = pred4, x = coord4$PC1, scale = FALSE)
+res44 <- rauc.valuesk2(coord4, res4, pred4)
+
+
+pred5 <- coord5$PC2
+res5 <- spatgeom(y = pred5, x = coord5$PC1, scale = FALSE)
+res55 <- rauc.valuesk2(coord5, res5, pred5)
+
+pred6 <- coord6$PC2
+res6 <- spatgeom(y = pred6, x = coord6$PC1, scale = FALSE)
+res66 <- rauc.valuesk2(coord6, res6, pred6)
+
+
+pred7 <- coord7$PC2
+res7 <- spatgeom(y = pred7, x = coord7$PC1, scale = FALSE)
+res77 <- rauc.valuesk2(coord7, res7, pred7)
+
+
+pred8 <- coord8$PC2
+res8 <- spatgeom(y = pred8, x = coord8$PC1, scale = FALSE)
+res88 <- rauc.valuesk2(coord8, res8, pred8)
+
+
+pred9 <- coord9$PC2
+res9 <- spatgeom(y = pred9, x = coord9$PC1, scale = FALSE)
+res99 <- rauc.valuesk2(coord9, res9, pred9)
+
+a <- res11$rauc
+b <- res22$rauc
+c <- res33$rauc
+d <- res44$rauc
+e <- res55$rauc
+f <- res66$rauc
+g <- res77$rauc
+h <- res88$rauc
+i <- res99$rauc
+
+raucs <- as.numeric(c(a,b,c,d,e,f,g,h,i))
+
+```
+
+```{r}
+library(ggplot2)
+library(forcats)
+
+rauc_num <- c(0.10852245, 0.09859518, 0.09665856, 0.12045026, 0.08687756, 0.07041286, 0.11028608, 0.07828442, 0.11004922)
+
+df <- data.frame(
+  variable = c(
+    "Euclidean (5)",
+    "Euclidean (15)",
+    "Euclidean (50)",
+    "Manhattan (5)",
+    "Manhattan (15)",
+    "Manhattan (50)",
+    "Cosine (5)",
+    "Cosine (15)",
+    "Cosine (50)"
+  ),
+  rauc = raucs
+)
+
+# ordenar de mayor a menor (como tu ejemplo)
+df$variable <- fct_reorder(df$variable, df$rauc, .desc = TRUE)
+
+p <- ggplot(df, aes(x = variable, y = rauc)) +
+  geom_col(fill = "lightblue",
+           color = "black",
+           width = 0.7) +
+  coord_flip() +
+  labs(
+    x = "UMAP configurations (Metric, Neighbors)",
+    y = "RAUC"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title = element_text(size = 14)
+  )
+
+p
+
+ggsave("finald.pdf", plot = p, width = 8, height = 5)
+``` 
+
+```{r}
+im1 <- res11$plots[[1]]
+im2 <- res22$plots[[1]]
+im3 <- res33$plots[[1]]
+im4 <- res44$plots[[1]]
+im5 <- res55$plots[[1]]
+im6 <- res66$plots[[1]]
+im7 <- res77$plots[[1]]
+im8 <- res88$plots[[1]]
+im9 <- res99$plots[[1]]
+
+library(gridExtra)
+library(grid)
+
+library(patchwork)
+
+p <- (im1 | im2 | im3) /
+     (im4 | im5 | im6) /
+     (im7 | im8 | im9)
+
+ggsave("umd.pdf", p, width = 14, height = 10)
+
+```
+
+```{r}
+a <- res11$plots
+b <- res22$plots
+c <- res33$plots
+d <- res44$plots
+e <- res55$plots
+f <- res66$plots
+g <- res77$plots
+h <- res88$plots
+i <- res99$plots
+
+library(ggplot2)
+library(patchwork)
+
+# Extraemos los plots de cada lista
+plots_list <- list(a[[1]], b[[1]], c[[1]],
+                   d[[1]], e[[1]], f[[1]],
+                   g[[1]], h[[1]], i[[1]])
+
+# Armamos la matriz 3x3 con patchwork
+final_plot <- (plots_list[[1]] | plots_list[[2]] | plots_list[[3]]) /
+              (plots_list[[4]] | plots_list[[5]] | plots_list[[6]]) /
+              (plots_list[[7]] | plots_list[[8]] | plots_list[[9]])
+
+# Guardar en PDF
+pdf("tx3.pdf", width = 14, height = 9)  # tamaño en pulgadas
+print(final_plot)
+dev.off()
+```
+
+
+```{r}
+pdf("sp.pdf", width = 12, height = 4)
+
+par(mfrow = c(1, 3), mar = c(2, 2, 2, 2))
+
+# Regularidad (≈500 puntos)
+modelo_reg <- sim_regular(500)
+plot(modelo_reg, pch = 16, cex = 1.3, axes = FALSE, xlab = "", ylab = "")
+box()  # mantiene el marco
+
+# Independencia (500 puntos)
+modelo_ind <- sim_independence(500)
+plot(modelo_ind, pch = 16, cex = 1.3, axes = FALSE, xlab = "", ylab = "")
+box()  # mantiene el marco
+
+# Clustering (500 puntos)
+modelo_clu <- sim_cluster(500)
+plot(modelo_clu, pch = 16, cex = 1.3, axes = FALSE, xlab = "", ylab = "")
+box()  # mantiene el marco
+
+dev.off()
+
+cat("Listo: 'sp.pdf' guardado en:", getwd())
+``` 
+
+
