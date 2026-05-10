@@ -24,4 +24,5 @@ RAUC allows for ranking predictors based on their geometric relevance to the tar
  - Dimensionality Reduction Evaluation.
 It is used to objectively compare hyperparameter configurations in algorithms like UMAP or PCA, identifying which settings produce the most defined clusters and the least amount of spatial noise.
 
-📝 Academic Reference: This project is based on the research by: Dylan Benavides, National High Technology Center (CeNAT), Costa Rica.
+📝 Academic Reference: This project is based on the research by: 
+Dylan Benavides, National High Technology Center (CeNAT), Costa Rica.
